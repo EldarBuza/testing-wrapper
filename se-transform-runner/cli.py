@@ -18,6 +18,7 @@ def discover_packages(roots: Optional[Iterable[str]]):
         try:
             pkg = importlib.import_module(root_pkg)
         except Exception as e:
+            print(f"[discover] failed to import root package {root_pkg}: {e}", file=sys.stderr)
             continue
         if hasattr(pkg, "__path__"):
             for _, modname, _ in pkgutil.walk_packages(
@@ -26,7 +27,7 @@ def discover_packages(roots: Optional[Iterable[str]]):
                 try:
                     importlib.import_module(modname)
                 except Exception:
-                    pass
+                    print(f"[discover] Skipping module {modname} due to import error: {e}", file=sys.stderr)
 
 
 def _pipeline_id(repo: str, qualname: str) -> str:
