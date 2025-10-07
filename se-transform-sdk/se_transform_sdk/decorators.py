@@ -1,6 +1,6 @@
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
-from .registry import PipelineSpec, TaskSpec, register_pipeline, register_task, DatasetRef
+from .registry import PipelineSpec, TaskSpec, register_pipeline, register_task, DatasetRef, CALL_RECORDER
 from .datasets import S3Dataset
 from .executor import _invoke_task  # internal helper
 
@@ -51,6 +51,9 @@ def task(
 
         @wraps(fn)
         def wrapped(*args, **kwargs):
+            if getattr(CALL_RECORDER, "enabled", False):
+                CALL_RECORDER.calls.append(spec.name)
+                return {"__se_dummy__": True, "task": spec.name}
             return _invoke_task(spec, fn, args, kwargs)
         wrapped.__task_spec__ = spec
         return wrapped

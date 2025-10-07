@@ -6,10 +6,57 @@ import pkgutil
 import sys
 from typing import Iterable, Optional
 
-from se_transform_sdk.registry import PIPELINES
+from se_transform_sdk.registry import PIPELINES, CALL_RECORDER
 from se_transform_sdk.executor import run as run_exec
 from .api import BackendAPI
 
+def _fake_params(param_schema: dict) -> dict:
+    out = {}
+    for k,v in param_schema.items():
+        out[k] = "1970-01-01" if ("date" in k.lower() or "ds" == k) else ""
+    return out
+
+def _add_entry_terminal(graph:dict) -> dict:
+    nodes = [n["id"] for n in graph["nodes"]]
+    incoming = {n: 0 for n in nodes}
+    outgoing = {n: 0 for n in nodes}
+
+    for e in graph["edges"]:
+        if e["from"] in outgoing:
+            outgoing[e["from"]] += 1
+        if e["to"] in incoming:
+            incoming[e["to"]] += 1
+    entry = [n for n in nodes if incoming[n] == 0]
+    terminal = [n for n in nodes if outgoing[n] == 0]
+    graph["entry"] = entry
+    graph["terminal"] = terminal
+    return graph
+
+def _build_dag_for_pipeline(spec) -> dict:
+    CALL_RECORDER.enabled = True
+    CALL_RECORDER.calls = []
+    try:
+        fake = _fake_params(spec.params)
+        try:
+            spec.fn(**fake)
+        except Exception:
+            pass
+    finally:
+        CALL_RECORDER.enabled = False
+    
+    seq = list(CALL_RECORDER.calls)
+    seen = set()
+    nodes = []
+    for name in seq:
+        if name not in seen:
+            nodes.append({"id": name, "label": name})
+            seen.add(name)
+    
+    edges = []
+    for i in range(len(seq) - 1):
+        edges.append({"from": seq[i], "to": seq[i+1]})
+    graph = {"nodes": nodes, "edges": edges}
+    return _add_entry_terminal(graph)
 
 def discover_packages(roots: Optional[Iterable[str]]):
     if not roots:
@@ -39,10 +86,11 @@ def cmd_discover(args):
 
     repo = os.getenv("GITHUB_REPOSITORY", "local/repo")
     ref = os.getenv("GITHUB_SHA", "")
-
     manifest = {"repo": repo, "ref": ref, "pipelines": []}
+    
     for _, spec in PIPELINES.items():
         pid = _pipeline_id(repo, spec.qualname)
+        dag = _build_dag_for_pipeline(spec)
         manifest["pipelines"].append(
             {
                 "id": pid,
@@ -50,6 +98,7 @@ def cmd_discover(args):
                 "entrypoint": spec.qualname,
                 "params": list(spec.params.keys()),
                 "module": spec.module,
+                "graph": dag,
             }
         )
 

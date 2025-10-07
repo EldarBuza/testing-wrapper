@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 @dataclass
@@ -26,6 +27,13 @@ class PipelineSpec:
     qualname: str
     tasks: Dict[str, TaskSpec] = field(default_factory=dict)
 
+class CallRecorder(threading.local):
+    def __init__(self):
+        super().__init__()
+        self.enabled = False
+        self.calls = []
+
+CALL_RECORDER = CallRecorder()
 PIPELINES: Dict[str, PipelineSpec] = {}
 TASKS_BY_FN: Dict[Callable[..., Any], TaskSpec] = {}
 
