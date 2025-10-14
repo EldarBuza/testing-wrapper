@@ -13,7 +13,16 @@ class LineageClient:
         if not self.api_url or not self.token or not events:
             return
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        url = f"{self.api_url.rstrip('/')}/lineage/events/"
+
+        for e in events:
+            _add_local_run_id_facet(e)
+        
+        base = self.api_url.rstrip("/")
+        if base.endswith("/lineage/events") or base.endswith("/lineage/events/"):
+            url = base
+        else:
+            url = f"{base}/lineage/events"
+
         resp = requests.post(url, headers=headers, json={"events": events}, timeout=20)
         resp.raise_for_status()
 
@@ -39,3 +48,14 @@ def complete(producer: str, job_: Dict[str, Any], run_id: str, inputs=None, outp
 
 def fail(producer: str, job_: Dict[str, Any], run_id: str, facets=None):
     return {"eventType": "FAIL", "eventTime": now_iso(), "producer": producer, "job": job_, "run": {"runId": run_id, "facets": facets or {}}}
+
+def _add_local_run_id_facet(event: dict):
+    local_id = os.getenv("LOCAL_RUN_ID")
+    if not local_id:
+        return
+    run = event.get("run") or {}
+    facets = run.get("facets") or {}
+    # keep snake_case; backend doesn’t care
+    facets["se_local_run_id"] = {"localRunId": local_id}
+    run["facets"] = facets
+    event["run"] = run
