@@ -21,7 +21,7 @@ class LineageClient:
         if base.endswith("/lineage/events") or base.endswith("/lineage/events/"):
             url = base
         else:
-            url = f"{base}/lineage/events"
+            url = f"{base}/lineage/events/"
 
         resp = requests.post(url, headers=headers, json={"events": events}, timeout=20)
         resp.raise_for_status()
