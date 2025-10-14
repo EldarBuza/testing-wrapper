@@ -13,7 +13,7 @@ class LineageClient:
         if not self.api_url or not self.token or not events:
             return
         headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-        url = f"{self.api_url.rstrip('/')}/lineage/events/batch"
+        url = f"{self.api_url.rstrip('/')}/lineage/events"
         resp = requests.post(url, headers=headers, json={"events": events}, timeout=20)
         resp.raise_for_status()
 
